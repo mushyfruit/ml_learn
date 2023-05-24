@@ -1,3 +1,4 @@
+import tensorflow as tf
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input
 from tensorflow.keras.layers import Conv2D
@@ -8,7 +9,7 @@ from tensorflow.keras.layers import concatenate
 from tensorflow.keras.optimizers import Adam
 
 
-def unet(pretrained_model=None, pretrained_weights=None, input_size=(256, 256, 3)):
+def unet(pretrained_model=None, pretrained_weights=None, input_size=(128, 128, 3)):
     # Used to instantiate Keras tensor.
     if not pretrained_model:
         n_filters = 64
@@ -141,13 +142,16 @@ def unet(pretrained_model=None, pretrained_weights=None, input_size=(256, 256, 3
             x = Conv2D(up, (3, 3), activation='relu', padding='same')(x)
             x = Conv2D(up, (3, 3), activation='relu', padding='same')(x)
 
-        x = Conv2D(2, (3, 3), activation='relu', padding='same')(x)
-        conv_10 = Conv2D(1, (1, 1), activation='sigmoid')(x)
+        last = tf.keras.layers.Conv2DTranspose(
+            filters=3, kernel_size=3, strides=1,
+            padding='same')  # 64x64 -> 128x128
 
-        model = Model(inputs=inputs, outputs=conv_10)
+        x = last(x)
+
+        model = Model(inputs=inputs, outputs=x)
         model.compile(
             optimizer=Adam(learning_rate=1e-4),
-            loss='binary_crossentropy',
+            loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
             metrics=['accuracy']
         )
 
