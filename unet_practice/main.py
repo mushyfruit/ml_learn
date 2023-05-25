@@ -9,15 +9,8 @@ from unet_model import unet
 dataset, info = tfds.load('oxford_iiit_pet:3.*.*', with_info=True)
 
 
-class DisplayCallback(tf.keras.callbacks.Callback):
-    def on_epoch_end(self, epoch, logs=None):
-        show_predictions()
-        print('\nSample Prediction after epoch {}\n'.format(epoch + 1))
-
-
 def display(display_list):
     plt.figure(figsize=(15, 15))
-
     title = ['Input Image', 'True Mask', 'Predicted Mask']
 
     for i in range(len(display_list)):
@@ -32,13 +25,6 @@ def create_mask(pred_mask):
     pred_mask = tf.argmax(pred_mask, axis=-1)
     pred_mask = pred_mask[..., tf.newaxis]
     return pred_mask[0]
-
-
-def show_predictions(data=None, num=1):
-    if data:
-        for image, mask in data.take(num):
-            pred_mask = model.predict(image)
-            display([image[0], mask[0], create_mask(pred_mask)])
 
 
 def normalize(input_image, input_mask):
@@ -90,17 +76,36 @@ for layer in base_model.layers:
     layer.trainable = False
 
 # base_model.summary()
-EPOCHS = 1
+EPOCHS = 3
 VAL_SUBSPLITS = 5
-VALIDATION_STEPS = info.splits['test'].num_examples // BATCH_SIZE // VAL_SUBSPLITS
+VALIDATION_STEPS = info.splits[
+                       'test'].num_examples // BATCH_SIZE // VAL_SUBSPLITS
 
 model = unet(base_model)
 # tf.keras.utils.plot_model(model, show_shapes=True)
+
+for image, mask in train_images.take(1):
+    sample_image, sample_mask = image, mask
+
+
+def show_predictions():
+    display([sample_image, sample_mask,
+             create_mask(model.predict(sample_image[tf.newaxis, ...]))])
+
+
+class DisplayCallback(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        show_predictions(train_images)
+        print('\nSample Prediction after epoch {}\n'.format(epoch + 1))
+
+
 model_history = model.fit(train_batches,
                           epochs=EPOCHS,
                           steps_per_epoch=STEPS_PER_EPOCH,
                           validation_steps=VALIDATION_STEPS,
-                          validation_data=test_batches)
+                          validation_data=test_batches,
+                          callbacks=[DisplayCallback()],
+                          use_multiprocessing=True)
 
 loss = model_history.history['loss']
 val_loss = model_history.history['val_loss']
